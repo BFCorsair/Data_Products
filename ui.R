@@ -7,8 +7,14 @@ shinyUI(pageWithSidebar(
   	sliderInput('bonds', 'Bonds',value = 50, min = 0, max = 100, step = 0.5,)
 ),
   mainPanel(
-  	h2(textOutput('msg')),
+  	h3(textOutput('msg')),
     tableOutput("values"),
-    plotOutput('Portfolio', height="600px")
+	h3("Returns of Blended Portfolio"),
+    plotOutput('Portfolio', height="400px"),
+    tableOutput("metrics"),
+    h3("Returns of 3 Main Investment Classes"),
+    plotOutput('Indices', height="400px"),
+    tableOutput("indices_metrics")
+
   )
 ))
