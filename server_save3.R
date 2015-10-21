@@ -51,13 +51,7 @@ default_bonds <- 50 # percent
 
 shinyServer(function(input, output) {
   # Reactive expression to compose a data frame containing all of the values
-  ### IMPORTANT
-  # Any computational block that includes input values must call SliderValues
-  # so that shiny knows to re-run the compuations
-  ###
   sliderValues <- reactive({
-
-
     stocks <- input$stocks
     bonds <- input$bonds
     # Note the {} to execute R code
@@ -74,8 +68,10 @@ shinyServer(function(input, output) {
     }
     bills <- 100.0 - (stocks + bonds)
 
+
+
     # Compose data frame
-    dd1 <- data.frame(
+    data.frame(
       'Investment Type' = c("Stocks %", 
                "Bonds %",
                "Bills %"),
@@ -83,66 +79,29 @@ shinyServer(function(input, output) {
                              bonds,
                              bills)), 
       stringsAsFactors=FALSE)
-
-    start_date <- input$dates[1]
-    end_date <- input$dates[2]
-    dates <- c(start_date, end_date)
-    n <- 1 + start_date - dfx[1,'Year']
-    m <-  nrow(dfx) - (dfx[nrow(dfx), 'Year'] - end_date)
-
-    dd2 <- dfx[n:m,]
-    dd2 <- mutate(dd2, Portfolio = 0.01 * (stocks*dd2$S.P.500+bills*dd2$X3.month.T.Bills+bonds*dd2$X10.year.Bonds))
-    message(paste0(stocks, '   ', bonds, '    ', bills))
-    message(paste0("dd2: ", dd2[1,'Portfolio']))
-
-    list(dd1, dd2, dates)
   })
 
   # Show the values using an HTML table
   output$values <- renderTable({
-    data.frame(sliderValues()[1])
+    sliderValues()
   })
 
   
-  # Plot Portfolio
   output$Portfolio <- renderPlot({
     message('renderPlot')
-    df2 <- data.frame(sliderValues()[2])
-    message(df2[1,'Portfolio'])
-
     # Compute & plot portfolio
-    # df2 <- mutate(dfx, Portfolio = stocks*dfx$S.P.500+bills*dfx$X3.month.T.Bills+bonds*dfx$X10.year.Bonds)
+    df2 <- mutate(dfx, Portfolio = stocks*dfx$S.P.500+bills*dfx$X3.month.T.Bills+bonds*dfx$X10.year.Bonds)
+    message(df2[1,])
     colnames(df2) <- c('Year','S & P 500', '3-month T-Bills', '10-year Bonds', 'Portfolio')
     g <- ggplot(df2, aes(x=Year, group=1))
-    g <- g +  geom_line(aes(y=Portfolio),size=1.5,colour="#0072B2", alpha = 1.0)
+    g <- g +  geom_line(aes(y=Portfolio),size=1.5,colour="black", alpha = 1.0)
     # g <- g + scale_color_continuous()
     g <- g + ylim(-max_scale, max_scale) + ggtitle("Returns for Blended Portfolio")
     g
   })    
-
-    # Compute Portofolio Metrics
-  output$metrics <- renderTable({
-    df2 <- data.frame(sliderValues()[2])
-    data.frame(
-      'Portofolio Metrics' = c("Average Return", 
-               "Standard Deviation",
-               "Lowest Yearly Return",
-               "Highest Yeaarly Return"),
-      Percentage = as.character(compute_stats(df2$Portfolio)),
-      stringsAsFactors=FALSE)  
-    })
-
   output$Indices <- renderPlot({
-    ddd <- unlist(sliderValues()[3])  # somehow need to call unlist()
-    message(ddd)
-    message(class(ddd))
-    start_date <- ddd[1]
-    end_date <- ddd[2]
-    n <- 1 + start_date - dfx[1,'Year']
-    m <-  nrow(dfx) - (dfx[nrow(dfx), 'Year'] - end_date)
-    message(paste0('Indices dates:', start_date, '  ', end_date))
     # Plot historical data
-    df1 <- dfx[n:m,]
+    df1 <- dfx
     colnames(df1) <- c('Year','S & P 500', '3-month T-Bills', '10-year Bonds')
     meltdf <- melt(df1, id='Year')
     colnames(meltdf) <- c('Year', "Investment_Class", "Returns")
@@ -157,17 +116,6 @@ shinyServer(function(input, output) {
 
    # Compute Portofolio Metrics
   output$indices_metrics <- renderTable({
-    ddd <- unlist(sliderValues()[3])  # somehow need to call unlist()
-    message(ddd)
-    message(class(ddd))
-    start_date <- ddd[1]
-    end_date <- ddd[2]
-    n <- 1 + start_date - dfx[1,'Year']
-    m <-  nrow(dfx) - (dfx[nrow(dfx), 'Year'] - end_date)
-    message(paste0('Indices dates:', start_date, '  ', end_date))
-    # Plot historical data
-    df1 <- dfx[n:m,]
-    colnames(df1) <- c('Year','S & P 500', '3-month T-Bills', '10-year Bonds')
     data.frame(
       'Portofolio Metrics' = c("Average Return", 
                "Standard Deviation",
@@ -181,6 +129,15 @@ shinyServer(function(input, output) {
 
 
 
-
+  # Compute Portofolio Metrics
+  output$metrics <- renderTable({
+    data.frame(
+      'Portofolio Metrics' = c("Average Return", 
+               "Standard Deviation",
+               "Lowest Yearly Return",
+               "Highest Yeaarly Return"),
+      Percentage = as.character(compute_stats(df2$Portfolio)),
+      stringsAsFactors=FALSE)  
+    })
 })
 
