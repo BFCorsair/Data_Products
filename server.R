@@ -8,16 +8,35 @@ library(gridExtra)
 library(ggplot2)
 
 # ---- Helper Functions
+
+# Function to convert an annual return expressed in % to a multiplicative number
+# Eg 20% -> 1.2
+Ret2Nb <- function (x) {1 + 0.01 * x}
+
+# Compute CAGR on a vector of returns
+# The returns are % numbers
+# the CAGR is also computed as a % number
+# E.g. c(10,20) -> 14.89  i.e 10% & 20% -> CAGR: 14.89%
+cagr <- function(vct) {
+  x <- Ret2Nb(vct)
+  y <- apply(data.frame(x), 2, FUN=prod)
+  z <- 100.0 * (y ** (1/length(vct)) - 1.0)
+  round(z, 2)
+}
+
+
 # compute basic stats for an index or portfolio
 compute_stats <- function(vct) {
   c( round(mean(vct),2), 
      round(sd(vct),2),
      round(min(vct),2),
-     round(max(vct),2) )
+     round(max(vct),2),
+     cagr(vct) )
 }
 
 # Function to remove the % character from the 3 columns
 rmpct <- function(x) { gsub('%','',x)}
+
 # ----
 
 # Retrieve the Excel file and load it into a data frame
@@ -86,6 +105,7 @@ shinyServer(function(input, output) {
 
     start_date <- input$dates[1]
     end_date <- input$dates[2]
+    output$dates <- renderText({paste0("Investment Period - Start Year: ",start_date, " - End Year: ", end_date)})
     dates <- c(start_date, end_date)
     n <- 1 + start_date - dfx[1,'Year']
     m <-  nrow(dfx) - (dfx[nrow(dfx), 'Year'] - end_date)
@@ -103,6 +123,7 @@ shinyServer(function(input, output) {
     data.frame(sliderValues()[1])
   })
 
+
   
   # Plot Portfolio
   output$Portfolio <- renderPlot({
@@ -114,7 +135,8 @@ shinyServer(function(input, output) {
     # df2 <- mutate(dfx, Portfolio = stocks*dfx$S.P.500+bills*dfx$X3.month.T.Bills+bonds*dfx$X10.year.Bonds)
     colnames(df2) <- c('Year','S & P 500', '3-month T-Bills', '10-year Bonds', 'Portfolio')
     g <- ggplot(df2, aes(x=Year, group=1))
-    g <- g +  geom_line(aes(y=Portfolio),size=1.5,colour="#0072B2", alpha = 1.0)
+    g <- g + geom_line(aes(y=Portfolio),size=1.5,colour="#0072B2", alpha = 1.0)
+    g <- g + geom_point(aes(y=Portfolio))
     # g <- g + scale_color_continuous()
     g <- g + ylim(-max_scale, max_scale) + ggtitle("Returns for Blended Portfolio")
     g
@@ -123,19 +145,39 @@ shinyServer(function(input, output) {
     # Compute Portofolio Metrics
   output$metrics <- renderTable({
     df2 <- data.frame(sliderValues()[2])
+
+    # # Compute CAGR
+    # # Convert the % return values to multiplicative numbers
+    # df3 <- apply(df2[,2:5],2, Ret2Nb)
+    # # Compute the cumulative returns 
+    # d4 <- data.frame( apply(df3, 2, prod) )
+    # # compute GAGR from (a) cumulative return and (b) number of years
+    # nb_yr <- nrow(df2)
+    # cagr <- function(x) {100.0 * (x ** (1/nb_year)-1)}
+    # d5 <- data.frame ( apply(d4, 2, cagr))
+
     data.frame(
-      'Portofolio Metrics' = c("Average Return", 
-               "Standard Deviation",
-               "Lowest Yearly Return",
-               "Highest Yeaarly Return"),
-      Percentage = as.character(compute_stats(df2$Portfolio)),
+      'Portofolio Metrics' = c("Average Return (%)", 
+               "Standard Deviation (%)",
+               "Lowest Yearly Return (%)",
+               "Highest Yeaarly Return (%)",
+               "CAGR (%)"),
+      'S & P 500' = as.character(compute_stats(df2[,2])), 
+      '3-month T-Bills' = as.character(compute_stats(df2[,3])), 
+      '10-year Bonds' = as.character(compute_stats(df2[,4])), 
+      'New Portfolio' = as.character(compute_stats(df2[,5])), 
       stringsAsFactors=FALSE)  
+      # data.frame(
+      # 'Portofolio Metrics' = c("Average Return", 
+      #          "Standard Deviation",
+      #          "Lowest Yearly Return",
+      #          "Highest Yeaarly Return"),
+      # Percentage = as.character(compute_stats(df2$Portfolio)),
+      # stringsAsFactors=FALSE)  
     })
 
   output$Indices <- renderPlot({
     ddd <- unlist(sliderValues()[3])  # somehow need to call unlist()
-    message(ddd)
-    message(class(ddd))
     start_date <- ddd[1]
     end_date <- ddd[2]
     n <- 1 + start_date - dfx[1,'Year']
@@ -153,34 +195,6 @@ shinyServer(function(input, output) {
     q <- q  + ggtitle("Returns for 3 Main Investment Classes")
     q
   })
-
-
-   # Compute Portofolio Metrics
-  output$indices_metrics <- renderTable({
-    ddd <- unlist(sliderValues()[3])  # somehow need to call unlist()
-    message(ddd)
-    message(class(ddd))
-    start_date <- ddd[1]
-    end_date <- ddd[2]
-    n <- 1 + start_date - dfx[1,'Year']
-    m <-  nrow(dfx) - (dfx[nrow(dfx), 'Year'] - end_date)
-    message(paste0('Indices dates:', start_date, '  ', end_date))
-    # Plot historical data
-    df1 <- dfx[n:m,]
-    colnames(df1) <- c('Year','S & P 500', '3-month T-Bills', '10-year Bonds')
-    data.frame(
-      'Portofolio Metrics' = c("Average Return", 
-               "Standard Deviation",
-               "Lowest Yearly Return",
-               "Highest Yeaarly Return"),
-      'S & P 500' = as.character(compute_stats(df1[,2])), 
-      '3-month T-Bills' = as.character(compute_stats(df1[,3])), 
-      '10-year Bonds' = as.character(compute_stats(df1[,4])), 
-      stringsAsFactors=FALSE)  
-    })
-
-
-
 
 })
 
